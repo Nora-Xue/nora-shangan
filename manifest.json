@@ -1,7 +1,8 @@
 {
   "name": "Nora上岸 · 备考工作台",
   "short_name": "Nora上岸",
-  "start_url": "/",
+  "start_url": "/nora-shangan/",
+  "scope": "/nora-shangan/",
   "display": "standalone",
   "background_color": "#b8f0e1",
   "theme_color": "#b8f0e1",
