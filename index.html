@@ -790,7 +790,7 @@ function renderNav(){
   const isMobile = window.matchMedia && window.matchMedia('(max-width: 540px)').matches;
   let html = '';
   order.forEach((g,gi)=>{
-    const collapsible = !isMobile && COLLAPSIBLE_GROUPS.has(g.group);
+    const collapsible = COLLAPSIBLE_GROUPS.has(g.group);
     const isCollapsed = collapsible && navCollapsed[g.group] !== false;
     const show = !(isCollapsed && !groupHasActive(g));
     if(collapsible){
