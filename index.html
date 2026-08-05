@@ -54,7 +54,8 @@ input,textarea,select{font-family:inherit;font-size:14px;color:var(--text-1);bac
 input:focus,textarea:focus,select:focus{border-color:var(--mint-400)}
 textarea{resize:vertical;min-height:60px}
 .app{display:flex;height:100vh;height:100dvh;overflow:hidden;background:linear-gradient(135deg,#eaf7f1 0%,#d8f0e8 50%,#cfeae8 100%)}
-.sidebar{width:240px;flex-shrink:0;background:linear-gradient(180deg,#e6f7f1 0%,#d6efea 100%);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden;position:relative}
+.sidebar{width:240px;flex-shrink:0;background:linear-gradient(180deg,#e6f7f1 0%,#d6efea 100%);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden;position:relative;transition:margin-left .28s ease;z-index:50}
+.sidebar.collapsed{margin-left:-240px;box-shadow:none}
 .sidebar::before{content:"";position:absolute;top:0;left:0;right:0;height:160px;background:linear-gradient(135deg,rgba(168,224,204,.4),rgba(184,232,230,.3));pointer-events:none}
 .user-card{position:relative;padding:18px 16px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px dashed rgba(93,170,160,.18)}
 .avatar{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--mint-300),var(--aqua-300));display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:var(--shadow-soft);position:relative;flex-shrink:0}
@@ -94,6 +95,8 @@ textarea{resize:vertical;min-height:60px}
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
 .topbar{height:46px;background:rgba(255,255,255,.6);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);display:flex;align-items:center;padding:0 16px;gap:10px;border-bottom:1px solid var(--line)}
 .topbar .title{font-size:13px;color:var(--text-2);font-weight:600;display:flex;align-items:center;gap:6px}
+.menu-btn{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px;color:var(--text-2);cursor:pointer;background:rgba(255,255,255,.6);border:1px solid var(--line);flex-shrink:0;-webkit-tap-highlight-color:transparent;transition:all .2s}
+.menu-btn:hover{background:#fff;color:var(--mint-600)}
 .topbar .spacer{flex:1}
 .topbar .pill{padding:4px 10px;background:rgba(255,255,255,.7);border-radius:20px;font-size:11px;color:var(--text-2);display:flex;align-items:center;gap:4px;border:1px solid var(--line)}
 .pill .pdot{width:6px;height:6px;border-radius:50%;background:var(--mint-500)}
@@ -252,6 +255,8 @@ textarea{resize:vertical;min-height:60px}
 @media (max-width: 540px){
   .app{flex-direction:column}
   .sidebar{width:100%;height:auto;max-height:38vh;border-right:none;border-bottom:1px solid var(--line);flex-shrink:0}
+  .sidebar.collapsed{margin-left:0}
+  .menu-btn{display:none}
   .user-card{padding:10px 14px}
   .nav-list{display:flex;overflow-x:auto;overflow-y:hidden;padding:4px 8px 8px;gap:4px;flex-wrap:nowrap}
   .nav-group-title{display:none}
@@ -362,6 +367,7 @@ textarea{resize:vertical;min-height:60px}
   </aside>
   <main class="main">
     <div class="topbar">
+      <div class="menu-btn" onclick="toggleSidebar()" title="收起 / 展开侧栏">☰</div>
       <div class="title" id="topTitle">🌿 Nora 上岸</div>
       <div class="spacer"></div>
       <div class="pill" id="connPill" style="cursor:pointer" onclick="openSyncModal()" title="点此设置云端同步"><span class="pdot" id="pDot"></span><span id="pText">本地已连接</span></div>
@@ -727,8 +733,21 @@ let currentPage = 'daily';
 let dragSrcId = null;
 
 /* ============ Init ============ */
+function toggleSidebar(){
+  const s=document.getElementById('sidebar');
+  if(!s) return;
+  const isMobile = window.matchMedia && window.matchMedia('(max-width: 540px)').matches;
+  if(isMobile) return; // 移动端为横排顶部导航，不折叠
+  s.classList.toggle('collapsed');
+  try{ localStorage.setItem('nora_sidebar_collapsed', s.classList.contains('collapsed')?'1':'0'); }catch(e){}
+}
 function init(){
   ensureReviewNav();
+  try{
+    if(localStorage.getItem('nora_sidebar_collapsed')==='1' && !(window.matchMedia && window.matchMedia('(max-width: 540px)').matches)){
+      const s=document.getElementById('sidebar'); if(s) s.classList.add('collapsed');
+    }
+  }catch(e){}
   renderNav();
   renderPage();
   setupConnStatus();
