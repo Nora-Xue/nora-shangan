@@ -1,0 +1,28 @@
+{
+  "name": "Nora上岸 · 备考工作台",
+  "short_name": "Nora上岸",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#b8f0e1",
+  "theme_color": "#b8f0e1",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
