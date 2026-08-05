@@ -76,6 +76,9 @@ textarea{resize:vertical;min-height:60px}
 .nav-foot{margin-top:auto;padding:10px 14px 16px;flex-shrink:0}
 .nav-install-btn{width:100%;box-sizing:border-box;padding:11px 12px;border-radius:12px;background:linear-gradient(135deg,var(--mint-400),var(--aqua-400));color:#fff;font-size:12.5px;font-weight:600;text-align:center;cursor:pointer;box-shadow:var(--shadow-soft);-webkit-tap-highlight-color:transparent}
 .nav-install-btn.ready{box-shadow:0 0 0 2px rgba(255,255,255,.6),0 4px 14px rgba(80,180,140,.4);animation:pwaPulse 1.6s infinite}
+.nav-install-btn.installed{background:#e8f3ef;color:var(--text-2);box-shadow:none;cursor:default;animation:none}
+.nav-dl-link{display:block;text-align:center;margin-top:8px;font-size:11.5px;color:var(--text-2);text-decoration:none;opacity:.75}
+.nav-dl-link:active{opacity:1}
 @keyframes pwaPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}
 .nav-item{display:flex;align-items:center;gap:10px;padding:9px 18px;font-size:13px;color:var(--text-2);cursor:pointer;position:relative;border-left:3px solid transparent;transition:all .25s}
 .nav-item:hover{background:rgba(255,255,255,.4);color:var(--text-1)}
@@ -252,8 +255,9 @@ textarea{resize:vertical;min-height:60px}
   .user-card{padding:10px 14px}
   .nav-list{display:flex;overflow-x:auto;overflow-y:hidden;padding:4px 8px 8px;gap:4px;flex-wrap:nowrap}
   .nav-group-title{display:none}
-  .nav-foot{margin-top:0;padding:8px;display:flex;flex-shrink:0}
-  .nav-install-btn{margin:0;flex-shrink:0;white-space:nowrap;width:auto}
+  .nav-foot{margin-top:0;padding:8px;display:flex;flex-direction:column;align-items:stretch;flex-shrink:0}
+  .nav-install-btn{margin:0;flex-shrink:0;white-space:nowrap;width:100%}
+  .nav-dl-link{margin-top:6px}
   .nav-item{padding:7px 12px;background:rgba(255,255,255,.6);border-radius:10px;border:1px solid var(--line);font-size:12px;white-space:nowrap;flex-shrink:0}
   .nav-item.sub{padding-left:12px}
   .nav-item.active{background:linear-gradient(135deg,var(--mint-300),var(--aqua-300));color:#fff;border-left-color:transparent}
@@ -352,7 +356,8 @@ textarea{resize:vertical;min-height:60px}
     </div>
     <div class="nav-list" id="navList"></div>
     <div class="nav-foot" id="navFoot">
-      <div class="nav-install-btn" id="navInstallBtn" onclick="pwaInstallClick()">📱 安装到主屏</div>
+      <div class="nav-install-btn" id="navInstallBtn">📱 安装到主屏</div>
+      <a class="nav-dl-link" id="navDlLink" download="Nora上岸.html" href="#">⬇ 下载离线副本</a>
     </div>
   </aside>
   <main class="main">
@@ -794,19 +799,53 @@ function toggleNavGroup(name){
   navCollapsed[name] = !wasCollapsed;
   renderNav();
 }
+function browserName(){
+  var ua=navigator.userAgent;
+  if(/Edg\//.test(ua)) return 'edge';
+  if(/OPR\/|Opera/.test(ua)) return 'opera';
+  if(/Firefox\//.test(ua)) return 'firefox';
+  if(/Chrome\//.test(ua)) return 'chrome';
+  if(/iPhone|iPad|iPod/.test(ua) && /Safari\//.test(ua)) return 'ios';
+  if(/Safari\//.test(ua)) return 'safari';
+  return 'other';
+}
+function isInstalledPWA(){
+  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone===true;
+}
 function pwaInstallClick(){
   if(dp){
     dp.prompt();
-    dp.userChoice.then(function(c){ if(c.outcome==='accepted') dp=null; }).finally(function(){ if(pwaDeferred){ pwaDeferred=false; renderInstallBtn(); } });
+    dp.userChoice.then(function(c){
+      if(c.outcome==='accepted'){ dp=null; }
+      else { dp=null; pwaDeferred=false; }
+    }).finally(function(){ renderInstallBtn(); });
     return;
   }
-  alert('iOS 用户：请点击 Safari 底部工具栏的「分享」按钮，选择「添加到主屏幕」。\n安卓 Chrome：点击右上角菜单 →「安装应用」。');
+  var bn=browserName();
+  if(bn==='ios'||bn==='safari'){
+    alert('iOS / iPad：请点击 Safari 底部工具栏的「分享」按钮 → 选择「添加到主屏幕」。\n（iOS 系统不支持一键安装，需走此路径）');
+  } else if(bn==='edge'||bn==='chrome'||bn==='opera'){
+    alert('未自动弹出安装提示，请用浏览器自带安装：\n• Edge：地址栏右侧的「＋ 安装」图标，或右上角「…」→「应用」→「将此站点安装为应用」。\n• 安装后即可像 App 一样离线使用，主屏图标无浏览器角标。');
+  } else if(bn==='firefox'){
+    alert('Firefox：点击地址栏的「安装」图标，或菜单 →「将此网站安装为应用」。');
+  } else {
+    alert('请使用浏览器菜单中的「安装应用 / 添加到主屏幕」功能。');
+  }
 }
 function renderInstallBtn(){
   const b=document.getElementById('navInstallBtn');
   if(!b) return;
-  b.className = 'nav-install-btn' + (pwaDeferred ? ' ready' : '');
-  b.textContent = '📱 安装到主屏' + (pwaDeferred ? ' ✦' : '');
+  const dl=document.getElementById('navDlLink');
+  if(dl) dl.href = location.href;
+  if(isInstalledPWA()){
+    b.className='nav-install-btn installed';
+    b.textContent='✅ 已安装为应用';
+    b.onclick=function(){ alert('应用已安装。如需卸载：Edge 菜单 → 应用 → 管理应用，移除即可。'); };
+    return;
+  }
+  b.className='nav-install-btn'+(pwaDeferred?' ready':'');
+  b.textContent='📱 安装到主屏'+(pwaDeferred?' ✦':'');
+  b.onclick=pwaInstallClick;
 }
 function navClick(id){
   currentPage = id;
