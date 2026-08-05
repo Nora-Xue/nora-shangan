@@ -252,20 +252,25 @@ textarea{resize:vertical;min-height:60px}
 @media (max-width: 720px){
   .sidebar{width:200px}
 }
+.nav-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:150;display:none}
+.nav-close{display:none}
 @media (max-width: 540px){
-  .app{flex-direction:column}
-  .sidebar{width:100%;height:auto;max-height:38vh;border-right:none;border-bottom:1px solid var(--line);flex-shrink:0}
-  .sidebar.collapsed{display:none}
-  .user-card{padding:10px 14px}
-  .nav-list{display:flex;overflow-x:auto;overflow-y:hidden;padding:4px 8px 8px;gap:4px;flex-wrap:nowrap}
-  .nav-group-title{display:none}
-  .nav-foot{margin-top:0;padding:8px;display:flex;flex-direction:column;align-items:stretch;flex-shrink:0}
-  .nav-install-btn{margin:0;flex-shrink:0;white-space:nowrap;width:100%}
-  .nav-dl-link{margin-top:6px}
-  .nav-item{padding:7px 12px;background:rgba(255,255,255,.6);border-radius:10px;border:1px solid var(--line);font-size:12px;white-space:nowrap;flex-shrink:0}
-  .nav-item.sub{padding-left:12px}
-  .nav-item.active{background:linear-gradient(135deg,var(--mint-300),var(--aqua-300));color:#fff;border-left-color:transparent}
-  .nav-item.active .ico{background:rgba(255,255,255,.4)}
+  .app{flex-direction:row}
+  .main{width:100%}
+  .sidebar{position:fixed;top:0;left:0;bottom:0;height:100vh;height:100dvh;width:240px;max-width:80vw;z-index:200;margin-left:0;transform:translateX(-100%);box-shadow:2px 0 20px rgba(0,0,0,.18);transition:transform .28s ease}
+  .sidebar.collapsed{transform:translateX(-100%)}
+  .sidebar:not(.collapsed){transform:translateX(0)}
+  .nav-close{display:flex;position:absolute;top:12px;right:12px;width:32px;height:32px;align-items:center;justify-content:center;border-radius:50%;background:rgba(255,255,255,.7);border:1px solid var(--line);font-size:15px;color:var(--text-2);cursor:pointer;z-index:10}
+  .user-card{padding:16px 14px 12px}
+  .nav-list{display:block;overflow-y:auto;overflow-x:hidden;padding:8px 0 16px;gap:0;flex-wrap:nowrap}
+  .nav-group-title{display:flex}
+  .nav-foot{margin-top:auto;padding:10px 14px 16px;display:block}
+  .nav-install-btn{margin:0;width:100%}
+  .nav-dl-link{margin-top:8px}
+  .nav-item{padding:9px 18px;background:transparent;border:none;border-radius:0;font-size:13px;white-space:normal;flex-shrink:1}
+  .nav-item.sub{padding-left:32px}
+  .nav-item.active{background:linear-gradient(90deg,rgba(255,255,255,.85),rgba(255,255,255,.5));color:var(--mint-600);font-weight:600;border-left-color:var(--mint-500)}
+  .nav-item.active .ico{background:linear-gradient(135deg,var(--mint-300),var(--aqua-300))}
   .drag-handle{display:none}
   .paper-subj-grid{grid-template-columns:repeat(auto-fill,minmax(72px,1fr))!important}
   .paper-subj-grid .qa-row{padding:6px 8px;flex-direction:column;align-items:flex-start;gap:2px}
@@ -350,6 +355,7 @@ textarea{resize:vertical;min-height:60px}
 <body>
 <div class="app">
   <aside class="sidebar" id="sidebar">
+    <div class="nav-close" onclick="toggleSidebar()" title="收起菜单">✕</div>
     <div class="user-card">
       <div class="avatar">🌿</div>
       <div class="user-info">
@@ -364,6 +370,7 @@ textarea{resize:vertical;min-height:60px}
       <a class="nav-dl-link" id="navDlLink" download="Nora上岸.html" href="#">⬇ 下载离线副本</a>
     </div>
   </aside>
+  <div class="nav-backdrop" id="navBackdrop" onclick="toggleSidebar()"></div>
   <main class="main">
     <div class="topbar">
       <div class="menu-btn" onclick="toggleSidebar()" title="收起 / 展开侧栏">☰</div>
@@ -733,16 +740,22 @@ let dragSrcId = null;
 
 /* ============ Init ============ */
 function toggleSidebar(){
-  const s=document.getElementById('sidebar');
+  var s=document.getElementById('sidebar');
   if(!s) return;
   s.classList.toggle('collapsed');
+  var isMobile = window.matchMedia && window.matchMedia('(max-width: 540px)').matches;
+  var bd=document.getElementById('navBackdrop');
+  if(bd) bd.style.display = (isMobile && !s.classList.contains('collapsed')) ? 'block' : 'none';
   try{ localStorage.setItem('nora_sidebar_collapsed', s.classList.contains('collapsed')?'1':'0'); }catch(e){}
 }
 function init(){
   ensureReviewNav();
   try{
-    if(localStorage.getItem('nora_sidebar_collapsed')==='1'){
-      const s=document.getElementById('sidebar'); if(s) s.classList.add('collapsed');
+    var sb=document.getElementById('sidebar');
+    var isMobile = window.matchMedia && window.matchMedia('(max-width: 540px)').matches;
+    if(sb){
+      if(isMobile){ sb.classList.add('collapsed'); }
+      else if(localStorage.getItem('nora_sidebar_collapsed')==='1'){ sb.classList.add('collapsed'); }
     }
   }catch(e){}
   renderNav();
