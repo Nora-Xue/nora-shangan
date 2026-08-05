@@ -290,6 +290,28 @@ textarea{resize:vertical;min-height:60px}
 .hm-legend .hm-cell{width:11px;height:11px;}
 .rev-stats{grid-template-columns:repeat(2,1fr);}
 #reviewToast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:rgba(42,61,58,.92);color:#fff;padding:10px 18px;border-radius:20px;font-size:13px;z-index:99998;opacity:0;transition:opacity .3s;pointer-events:none;}
+.rev-score-wrap{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.score-ring{width:124px;height:124px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.score-inner{width:96px;height:96px;border-radius:50%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.score-num{font-size:36px;font-weight:800;line-height:1}
+.score-sub{font-size:12px;color:var(--text-3);margin-top:2px}
+.score-meta{flex:1;min-width:160px}
+.score-label{font-size:18px;font-weight:800;margin-bottom:4px}
+.score-desc{font-size:13px;color:var(--text-2);line-height:1.5}
+.smart-dims{display:grid;gap:12px}
+.smart-prio{display:block}
+.smart-dim{border-radius:14px;padding:14px 16px;border-left:5px solid #ccc;background:#f3faf7}
+.smart-dim.good{border-color:var(--mint-500);background:#eefaf5}
+.smart-dim.warn{border-color:#ffb547;background:#fff8ec}
+.smart-dim.danger{border-color:#ff6b6b;background:#fdeeee}
+.sd-head{display:flex;align-items:center;gap:8px;font-weight:700;margin-bottom:6px}
+.sd-ico{font-size:16px}
+.sd-name{font-size:15px}
+.sd-badge{margin-left:auto;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px}
+.sd-badge.warn{background:#ffe6bd;color:#b9791a}
+.sd-badge.danger{background:#ffd4d4;color:#c0392b}
+.sd-find{font-size:13px;color:var(--text-2);margin-bottom:8px;line-height:1.5}
+.sd-tip{font-size:13px;color:var(--text-1);background:rgba(255,255,255,.65);border-radius:10px;padding:8px 10px;line-height:1.5}
 </style>
 <script>
 (function(){
@@ -2469,6 +2491,7 @@ function pageReview(){
   <div class="rev-tabs">
     <div class="rev-tab active" data-t="report" onclick="switchReviewTab('report')">📋 复盘报告</div>
     <div class="rev-tab" data-t="dash" onclick="switchReviewTab('dash')">📊 数据仪表盘</div>
+    <div class="rev-tab" data-t="smart" onclick="switchReviewTab('smart')">🤖 智能建议</div>
   </div>
   <div id="revReportPane">
     <div class="card">
@@ -2517,6 +2540,20 @@ function pageReview(){
       <div id="reviewRanking"></div>
     </div>
   </div>
+  <div id="revSmartPane" style="display:none">
+    <div class="card">
+      <div class="card-header"><span class="card-title">🤖 智能备考诊断</span><span class="rev-hint">基于你的全部数据自动分析</span></div>
+      <div id="revScore"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">🔥 重点建议</span><span class="rev-hint">优先处理这几条</span></div>
+      <div id="revPriorities" class="smart-prio"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">🩺 分项诊断</span></div>
+      <div id="revDims" class="smart-dims"></div>
+    </div>
+  </div>
   `;
 }
 function initReview(){
@@ -2525,10 +2562,12 @@ function initReview(){
 }
 function switchReviewTab(t){
   document.querySelectorAll('.rev-tab').forEach(x=>x.classList.toggle('active', x.dataset.t===t));
-  const rp=document.getElementById('revReportPane'), dp=document.getElementById('revDashPane');
+  const rp=document.getElementById('revReportPane'), dp=document.getElementById('revDashPane'), sp=document.getElementById('revSmartPane');
   if(rp) rp.style.display = t==='report'?'block':'none';
   if(dp) dp.style.display = t==='dash'?'block':'none';
+  if(sp) sp.style.display = t==='smart'?'block':'none';
   if(t==='dash') renderReviewDash();
+  if(t==='smart') renderReviewSmart();
 }
 function setReviewRange(type){
   const today=new Date(); const end=fmtDate(today);
@@ -2682,6 +2721,148 @@ function renderReviewRanking(){
   });
   html+='</tbody></table>';
   container.innerHTML=html;
+}
+
+function smartAnalyze(){
+  const st=(state.studyTime||[]), qa=(state.qaStats||[]), dp=(state.dailyPlan||[]), wq=(state.wrongQ||[]), pp=(state.papers||[]);
+  const dayMap={}; st.forEach(r=>{ dayMap[r.date]=(dayMap[r.date]||0)+(+r.minutes||0); });
+  const studyDates=Object.keys(dayMap).filter(d=>dayMap[d]>0).sort();
+  const totalMin=studyDates.reduce((s,d)=>s+dayMap[d],0);
+  const hasData = studyDates.length>0 || qa.length>0;
+  const streak=reviewStreak();
+  const today=new Date(); today.setHours(0,0,0,0);
+  const lastStudy=studyDates.length?studyDates[studyDates.length-1]:null;
+  let daysSince=lastStudy?Math.round((today-new Date(lastStudy+'T00:00:00'))/86400000):999;
+  const last30=[]; for(let i=0;i<30;i++){ const d=new Date(today); d.setDate(today.getDate()-i); last30.push(fmtDate(d)); }
+  const active30=last30.filter(d=>dayMap[d]>0).length; const rate30=Math.round(active30/30*100);
+  let maxGap=0;
+  for(let i=1;i<studyDates.length;i++){ const a=new Date(studyDates[i-1]+'T00:00:00'), b=new Date(studyDates[i]+'T00:00:00'); const g=Math.round((b-a)/86400000)-1; if(g>maxGap) maxGap=g; }
+  const wkMap={};
+  studyDates.forEach(d=>{ const dt=new Date(d+'T00:00:00'); const dow=dt.getDay(); const ws=new Date(dt); ws.setDate(dt.getDate()-dow); const wsStr=fmtDate(ws); wkMap[wsStr]=(wkMap[wsStr]||0)+dayMap[d]; });
+  const wkKeys=Object.keys(wkMap).sort(); const lastWk=wkKeys.slice(-8); const wkVals=lastWk.map(k=>wkMap[k]);
+  const recent4=wkVals.slice(-4), prev4=wkVals.slice(-8,-4);
+  const avgRecent=recent4.length?recent4.reduce((s,x)=>s+x,0)/recent4.length:0;
+  const avgPrev=prev4.length?prev4.reduce((s,x)=>s+x,0)/prev4.length:0;
+  let trend='flat'; if(avgPrev>0){ const diff=(avgRecent-avgPrev)/avgPrev; if(diff>0.1) trend='up'; else if(diff<-0.1) trend='down'; }
+  const weeklyAvgH=totalMin?(totalMin/(wkKeys.length||1))/60:0;
+  const modMap={};
+  const modAdd=(m,q,c,t,w,p)=>{ if(!m) return; if(!modMap[m]) modMap[m]={q:0,c:0,t:0,wrong:0,papers:0}; modMap[m].q+=(+q||0); modMap[m].c+=(+c||0); modMap[m].t+=(+t||0); if(w)modMap[m].wrong+=(+w||0); if(p)modMap[m].papers+=(+p||0); };
+  qa.forEach(r=>modAdd(r.module,r.count,r.correct,r.timeMin,0,0));
+  dp.forEach(r=>modAdd(r.module,0,0,r.timeMin,0,0));
+  wq.forEach(r=>modAdd(r.module,0,0,0,1,0));
+  pp.forEach(r=>modAdd(r.module,0,0,0,0,1));
+  const mods=Object.keys(modMap).map(m=>({name:m,...modMap[m],acc:modMap[m].q>0?modMap[m].c/modMap[m].q*100:null})).sort((a,b)=>b.t-a.t);
+  const totalModT=mods.reduce((s,m)=>s+m.t,0)||1;
+  const maxShare=mods.length?Math.max(...mods.map(m=>m.t/totalModT*100)):0;
+  const topMod=mods.length?mods[0]:null;
+  const lowAccMods=mods.filter(m=>m.acc!=null&&m.q>=10&&m.acc<60);
+  const weakByTime=mods.filter(m=>m.t>0&&m.t/totalModT*100<12&&mods.length>1);
+  const tasks=dp.length, tasksDone=dp.filter(r=>r.done).length; const taskRate=tasks?tasksDone/tasks*100:null;
+  const wrongCnt=wq.length; const wrongByMod={}; wq.forEach(r=>{ if(r.module) wrongByMod[r.module]=(wrongByMod[r.module]||0)+1; });
+  const topWrong=Object.keys(wrongByMod).sort((a,b)=>wrongByMod[b]-wrongByMod[a])[0];
+  const paperCnt=pp.length; const paperScores=pp.map(r=>parseFloat(r.totalScore)).filter(x=>!isNaN(x)); const paperAvg=paperScores.length?paperScores.reduce((s,x)=>s+x,0)/paperScores.length:null;
+  let paperTrend=null; if(paperScores.length>=3){ const half=Math.max(1,Math.floor(paperScores.length/2)); const first=paperScores.slice(0,half).reduce((s,x)=>s+x,0)/half; const last2=paperScores.slice(-half).reduce((s,x)=>s+x,0)/half; paperTrend=last2-first; }
+
+  const dims=[];
+  (function(){
+    let level='good', finding, suggestion;
+    if(streak===0||daysSince>3){ level='danger'; finding=`最近一次学习是 ${daysSince>=999?'从未':daysSince+' 天'}前，当前连续打卡已中断。`; suggestion='连续打卡中断会快速消耗学习惯性。今天先补 30 分钟找回节奏，并固定一个每天不变的「学习触发时段」（如晚 8 点）。'; }
+    else if(rate30<50||maxGap>=4){ level='warn'; finding=`连续打卡 ${streak} 天，但近 30 天仅打卡 ${active30} 天（${rate30}%），最长中断 ${maxGap} 天。`; suggestion='打卡频率不够稳。建议用「最低限度目标」——即使再忙也学 15 分钟，保证每日不断更。'; }
+    else { finding=`连续打卡 ${streak} 天，近 30 天打卡 ${active30} 天（${rate30}%），节奏稳定 👍。`; suggestion='保持现在的节奏，把「每日打卡」做成像刷牙一样自然的习惯。'; }
+    dims.push({key:'checkin',name:'打卡习惯',icon:'📅',level,finding,suggestion});
+  })();
+  (function(){
+    let level='good', finding, suggestion; const wh=Math.round(weeklyAvgH*10)/10;
+    if(weeklyAvgH<5){ level='danger'; finding=`累计学习 ${fmtDur(totalMin)}，周均仅约 ${wh} 小时，投入偏少。`; suggestion='备考需要足够的时长沉淀。尝试把周目标定到 10 小时以上，并拆成每天 1.5 小时的可执行块。'; }
+    else if(weeklyAvgH<10||trend==='down'){ level='warn'; finding=`周均约 ${wh} 小时${trend==='down'?'，且近 4 周比前 4 周下降':''}。`; suggestion=trend==='down'?'最近学习量在下滑，留意是否进入瓶颈或疲劳期，适当调整节奏但别停。':'时长还可提升，向周均 10–15 小时靠拢会更稳。'; }
+    else { finding=`周均约 ${wh} 小时，时长充足${trend==='up'?'且呈上升趋势 📈':''}。`; suggestion='时长到位了，接下来把精力更多放在「正确率」和「弱科突破」上。'; }
+    dims.push({key:'time',name:'学习时长',icon:'⏱️',level,finding,suggestion});
+  })();
+  (function(){
+    if(mods.length===0){ dims.push({key:'balance',name:'科目均衡',icon:'⚖️',level:'good',finding:'暂无分科目数据。',suggestion:'在各科目页面记录学习/做题后，这里会给出偏科与弱科提醒。'}); return; }
+    let level='good', finding, suggestion;
+    if(maxShare>65){ level='warn'; finding=`${topMod.name} 占全部学习时长的 ${Math.round(maxShare)}%，存在明显偏科。`; suggestion=`别让强势科目吃掉所有时间。给占比最低的科目每周固定留出专项时段，均衡发展更抗风险。`; }
+    else if(weakByTime.length){ level='warn'; finding=`有 ${weakByTime.length} 个科目投入占比不足 12%：${weakByTime.map(m=>m.name).join('、')}。`; suggestion=`这些科目容易被忽视。建议每周给 ${weakByTime[0].name} 至少排 2 次固定学习，避免考前突击。`; }
+    else { finding=`各科目时长分布较均衡，最高 ${topMod.name} 占 ${Math.round(maxShare)}%。`; suggestion='均衡投入有利于总分最大化，继续保持。'; }
+    dims.push({key:'balance',name:'科目均衡',icon:'⚖️',level,finding,suggestion});
+  })();
+  (function(){
+    if(mods.length===0){ dims.push({key:'acc',name:'答题正确率',icon:'🎯',level:'good',finding:'暂无做题数据。',suggestion:'记录做题量与正确数后，会提示正确率偏低的科目。'}); return; }
+    if(lowAccMods.length){ const lv=lowAccMods.some(m=>m.acc<45)?'danger':'warn'; const finding=`有 ${lowAccMods.length} 个科目正确率偏低（<60%）：${lowAccMods.map(m=>m.name+' '+Math.round(m.acc)+'%').join('、')}。`; const suggestion=`正确率低通常说明基础或方法有问题。建议对 ${lowAccMods[0].name} 做专项：先复盘错题、再刷同类题，把正确率拉到 70% 以上再提速。`; dims.push({key:'acc',name:'答题正确率',icon:'🎯',level:lv,finding,suggestion}); }
+    else { const accs=mods.filter(m=>m.acc!=null); const avgAcc=accs.length?Math.round(accs.reduce((s,m)=>s+m.acc,0)/accs.length):0; dims.push({key:'acc',name:'答题正确率',icon:'🎯',level:'good',finding:`各科目正确率整体不错，平均约 ${avgAcc}%。`,suggestion:'正确率在线，下一步可适度提速、挑战更高难度题。'}); }
+  })();
+  (function(){
+    let level='good', finding, suggestion;
+    if(wrongCnt===0){ finding='暂未记录错题。'; suggestion='遇到错题及时录入，系统才能帮你定位薄弱点。'; }
+    else if(wrongCnt>40){ level='warn'; finding=`已积累 ${wrongCnt} 道错题${topWrong?`，最多在「${topWrong}」`:''}。`; suggestion='错题在堆积说明复盘没跟上。建议设固定「错题回顾日」（如每周日），按科目重做，做对的再归档。'; }
+    else { finding=`已记录 ${wrongCnt} 道错题${topWrong?`，集中在「${topWrong}」`:''}。`; suggestion='保持录入习惯，并定期重做，让错题真正「清零」。'; }
+    dims.push({key:'wrong',name:'错题管理',icon:'❌',level,finding,suggestion});
+  })();
+  (function(){
+    if(paperCnt===0){ dims.push({key:'paper',name:'套卷模考',icon:'📝',level:'good',finding:'暂未记录套卷。',suggestion:'临近考试时，每周做 1 套完整套卷能显著提升应试节奏。'}); return; }
+    let level='good', finding, suggestion; const avgTxt=paperAvg!=null?Math.round(paperAvg*10)/10:null;
+    if(paperCnt<3){ level='warn'; finding=`仅 ${paperCnt} 套套卷${avgTxt!=null?`，均分 ${avgTxt}`:''}。`; suggestion='套卷练得太少，难以暴露时间分配与应试短板。建议每周固定 1 套全真模考，严格计时。'; }
+    else if(paperTrend!=null&&paperTrend<-3){ level='warn'; finding=`共 ${paperCnt} 套，均分 ${avgTxt}，但近期分数有所回落（约 ${Math.round(paperTrend*10)/10} 分）。`; suggestion='分数回落别慌，往往是难度或状态波动。回看最近几套的错题分布，针对性补强后再考。'; }
+    else if(paperTrend!=null&&paperTrend>3){ finding=`共 ${paperCnt} 套，均分 ${avgTxt}，且呈上升趋势 📈。`; suggestion='模考状态在变好，保持每周节奏，考前一周转为复盘而非猛练。'; }
+    else { finding=`共 ${paperCnt} 套，均分 ${avgTxt}，分数较平稳。`; suggestion='平稳是好信号，想再突破可尝试在弱科限时提速训练。'; }
+    dims.push({key:'paper',name:'套卷模考',icon:'📝',level,finding,suggestion});
+  })();
+  (function(){
+    if(taskRate==null){ dims.push({key:'task',name:'任务执行',icon:'✅',level:'good',finding:'暂未记录每日任务。',suggestion:'在打卡页添加每日任务，系统会追踪你的完成率。'}); return; }
+    let level='good', finding, suggestion;
+    if(taskRate<40){ level='danger'; finding=`任务完成率仅 ${Math.round(taskRate)}%（${tasksDone}/${tasks}）。`; suggestion='完成率偏低，计划可能定得太满。把每天任务砍到「必做 3 件」，完成后再追加，先找回成就感。'; }
+    else if(taskRate<60){ level='warn'; finding=`任务完成率 ${Math.round(taskRate)}%（${tasksDone}/${tasks}），有拖欠。`; suggestion='计划略超载。建议按「80% 可完成」来排任务量，留缓冲应对突发。'; }
+    else { finding=`任务完成率 ${Math.round(taskRate)}%（${tasksDone}/${tasks}），执行到位 👍。`; suggestion='计划落地率高，保持这种「量力而定」的排期节奏。'; }
+    dims.push({key:'task',name:'任务执行',icon:'✅',level,finding,suggestion});
+  })();
+
+  let score=100;
+  if(streak===0||daysSince>3) score-=22; else if(streak<=2) score-=14; else if(streak<=6) score-=6;
+  if(rate30<30) score-=18; else if(rate30<50) score-=10; else if(rate30<70) score-=4;
+  if(weeklyAvgH<5) score-=16; else if(weeklyAvgH<10) score-=8; else if(weeklyAvgH<15) score-=3;
+  if(trend==='down') score-=10;
+  if(maxShare>65) score-=8;
+  score-=Math.min(18, lowAccMods.length*6);
+  if(wrongCnt>40) score-=6;
+  if(paperCnt<3) score-=6;
+  if(taskRate!=null){ if(taskRate<40) score-=10; else if(taskRate<60) score-=6; else if(taskRate<75) score-=2; }
+  score=Math.max(0,Math.min(100,Math.round(score)));
+  let label, desc;
+  if(score>=85){ label='优秀'; desc='各项指标健康，保持节奏、稳中求进。'; }
+  else if(score>=70){ label='良好'; desc='整体不错，补上少数短板就能更稳。'; }
+  else if(score>=55){ label='中等'; desc='基础在，但有几处明显短板需补强。'; }
+  else if(score>=40){ label='需加油'; desc='当前有多个维度亮红灯，建议优先处理重点建议。'; }
+  else { label='偏弱'; desc='学习状态需要尽快调整，从「每天打卡」这一件事先做起。'; }
+  const priorities=dims.filter(d=>d.level!=='good').sort((a,b)=>(a.level===b.level?0:(a.level==='danger'?-1:1))).slice(0,4);
+  if(priorities.length===0) desc='太棒了，目前未发现明显短板，保持即可 🎉';
+  return {hasData,score,label,desc,dims,priorities};
+}
+function dimCardHTML(d){
+  const badge=d.level==='danger'?'<span class="sd-badge danger">紧急</span>':d.level==='warn'?'<span class="sd-badge warn">提醒</span>':'';
+  return `<div class="smart-dim ${d.level}">
+    <div class="sd-head"><span class="sd-ico">${d.icon}</span><span class="sd-name">${d.name}</span>${badge}</div>
+    <div class="sd-find">${d.finding}</div>
+    <div class="sd-tip">💡 ${d.suggestion}</div>
+  </div>`;
+}
+function renderReviewSmart(){
+  const box=document.getElementById('revScore'), pr=document.getElementById('revPriorities'), dm=document.getElementById('revDims');
+  if(!box) return;
+  const a=smartAnalyze();
+  if(!a.hasData){ box.innerHTML='<div class="empty"><div class="empty-title">还没有足够数据</div><div class="empty-sub">先去记录学习打卡、做题和任务，再来生成智能建议～</div></div>'; if(pr)pr.innerHTML=''; if(dm)dm.innerHTML=''; return; }
+  const color=a.score>=70?'#5cc4a3':a.score>=50?'#ffb547':'#ff6b6b';
+  const deg=a.score*3.6;
+  box.innerHTML=`<div class="rev-score-wrap">
+    <div class="score-ring" style="background:conic-gradient(${color} ${deg}deg, #e6f2ee ${deg}deg)">
+      <div class="score-inner"><div class="score-num" style="color:${color}">${a.score}</div><div class="score-sub">备考指数</div></div>
+    </div>
+    <div class="score-meta">
+      <div class="score-label" style="color:${color}">${a.label}</div>
+      <div class="score-desc">${a.desc}</div>
+    </div>
+  </div>`;
+  if(pr) pr.innerHTML = a.priorities.length? a.priorities.map(dimCardHTML).join('') : '<div class="empty"><div class="empty-title">暂无紧急事项 🎉</div><div class="empty-sub">当前各项指标良好，继续保持。</div></div>';
+  if(dm) dm.innerHTML = a.dims.map(dimCardHTML).join('');
 }
 
 init();
