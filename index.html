@@ -255,8 +255,7 @@ textarea{resize:vertical;min-height:60px}
 @media (max-width: 540px){
   .app{flex-direction:column}
   .sidebar{width:100%;height:auto;max-height:38vh;border-right:none;border-bottom:1px solid var(--line);flex-shrink:0}
-  .sidebar.collapsed{margin-left:0}
-  .menu-btn{display:none}
+  .sidebar.collapsed{display:none}
   .user-card{padding:10px 14px}
   .nav-list{display:flex;overflow-x:auto;overflow-y:hidden;padding:4px 8px 8px;gap:4px;flex-wrap:nowrap}
   .nav-group-title{display:none}
@@ -736,15 +735,13 @@ let dragSrcId = null;
 function toggleSidebar(){
   const s=document.getElementById('sidebar');
   if(!s) return;
-  const isMobile = window.matchMedia && window.matchMedia('(max-width: 540px)').matches;
-  if(isMobile) return; // 移动端为横排顶部导航，不折叠
   s.classList.toggle('collapsed');
   try{ localStorage.setItem('nora_sidebar_collapsed', s.classList.contains('collapsed')?'1':'0'); }catch(e){}
 }
 function init(){
   ensureReviewNav();
   try{
-    if(localStorage.getItem('nora_sidebar_collapsed')==='1' && !(window.matchMedia && window.matchMedia('(max-width: 540px)').matches)){
+    if(localStorage.getItem('nora_sidebar_collapsed')==='1'){
       const s=document.getElementById('sidebar'); if(s) s.classList.add('collapsed');
     }
   }catch(e){}
