@@ -69,6 +69,13 @@ textarea{resize:vertical;min-height:60px}
 .nav-list::-webkit-scrollbar-thumb{background:var(--mint-300);border-radius:2px}
 .nav-group-title{padding:10px 18px 4px;font-size:10px;color:var(--text-3);letter-spacing:1px;font-weight:600;text-transform:uppercase;display:flex;align-items:center;gap:6px}
 .nav-group-title::before{content:"";width:12px;height:1px;background:var(--text-3);opacity:.4}
+.nav-group-title.collapsible{cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent}
+.nav-group-title.collapsible:hover{color:var(--mint-600)}
+.nav-group-title.collapsible::before{display:none}
+.ng-caret{display:inline-block;width:12px;font-size:9px;opacity:.7;transition:transform .15s}
+.nav-install-btn{margin:12px 14px 16px;padding:11px 12px;border-radius:12px;background:linear-gradient(135deg,var(--mint-400),var(--aqua-400));color:#fff;font-size:12.5px;font-weight:600;text-align:center;cursor:pointer;box-shadow:var(--shadow-soft);-webkit-tap-highlight-color:transparent}
+.nav-install-btn.ready{box-shadow:0 0 0 2px rgba(255,255,255,.6),0 4px 14px rgba(80,180,140,.4);animation:pwaPulse 1.6s infinite}
+@keyframes pwaPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}
 .nav-item{display:flex;align-items:center;gap:10px;padding:9px 18px;font-size:13px;color:var(--text-2);cursor:pointer;position:relative;border-left:3px solid transparent;transition:all .25s}
 .nav-item:hover{background:rgba(255,255,255,.4);color:var(--text-1)}
 .nav-item.active{background:linear-gradient(90deg,rgba(255,255,255,.85),rgba(255,255,255,.5));color:var(--mint-600);font-weight:600;border-left-color:var(--mint-500)}
@@ -244,6 +251,7 @@ textarea{resize:vertical;min-height:60px}
   .user-card{padding:10px 14px}
   .nav-list{display:flex;overflow-x:auto;overflow-y:hidden;padding:4px 8px 8px;gap:4px;flex-wrap:nowrap}
   .nav-group-title{display:none}
+  .nav-install-btn{margin:0;flex-shrink:0;white-space:nowrap}
   .nav-item{padding:7px 12px;background:rgba(255,255,255,.6);border-radius:10px;border:1px solid var(--line);font-size:12px;white-space:nowrap;flex-shrink:0}
   .nav-item.sub{padding-left:12px}
   .nav-item.active{background:linear-gradient(135deg,var(--mint-300),var(--aqua-300));color:#fff;border-left-color:transparent}
@@ -730,33 +738,65 @@ function updateConnStatus(){
 }
 
 /* ============ Nav Render ============ */
+var pwaDeferred = false;
+var dp = null;
+const COLLAPSIBLE_GROUPS = new Set(['行测学习','申论学习','面试学习','数据复盘']);
+const navCollapsed = {};
+function groupHasActive(g){
+  return g.items.some(it=> it.id===currentPage || (it.sub && (SUBMODULES[it.sub]||[]).some(s=>s.id===currentPage)));
+}
 function renderNav(){
   const list = document.getElementById('navList');
   const order = getNavOrder();
+  const isMobile = window.matchMedia && window.matchMedia('(max-width: 540px)').matches;
   let html = '';
   order.forEach((g,gi)=>{
-    html += `<div class="nav-group-title">${g.group}</div>`;
-    g.items.forEach((it,ii)=>{
-      const isActive = currentPage===it.id;
-      html += `<div class="nav-item ${isActive?'active':''}" data-id="${it.id}" draggable="true" onclick="navClick('${it.id}')">
-        <div class="ico">${it.icon}</div>
-        <div style="flex:1">${it.name}</div>
-        <div class="drag-handle" title="拖动排序">⠿</div>
-      </div>`;
-      if(it.sub && SUBMODULES[it.sub]){
-        SUBMODULES[it.sub].forEach(s=>{
-          const sa = currentPage===s.id;
-          html += `<div class="nav-item sub ${sa?'active':''}" data-id="${s.id}" data-parent="${it.id}" draggable="true" onclick="navClick('${s.id}')">
-            <div class="ico">${s.icon}</div>
-            <div style="flex:1">${s.name}</div>
-            <div class="drag-handle" title="拖动排序">⠿</div>
-          </div>`;
-        });
-      }
-    });
+    const collapsible = !isMobile && COLLAPSIBLE_GROUPS.has(g.group);
+    const isCollapsed = collapsible && navCollapsed[g.group] !== false;
+    const show = !(isCollapsed && !groupHasActive(g));
+    if(collapsible){
+      html += `<div class="nav-group-title collapsible ${isCollapsed?'collapsed':''}" onclick="toggleNavGroup('${g.group}')"><span class="ng-caret">${isCollapsed?'▸':'▾'}</span>${g.group}</div>`;
+    } else {
+      html += `<div class="nav-group-title">${g.group}</div>`;
+    }
+    if(show){
+      g.items.forEach((it,ii)=>{
+        const isActive = currentPage===it.id;
+        html += `<div class="nav-item ${isActive?'active':''}" data-id="${it.id}" draggable="true" onclick="navClick('${it.id}')">
+          <div class="ico">${it.icon}</div>
+          <div style="flex:1">${it.name}</div>
+          <div class="drag-handle" title="拖动排序">⠿</div>
+        </div>`;
+        if(it.sub && SUBMODULES[it.sub]){
+          SUBMODULES[it.sub].forEach(s=>{
+            const sa = currentPage===s.id;
+            html += `<div class="nav-item sub ${sa?'active':''}" data-id="${s.id}" data-parent="${it.id}" draggable="true" onclick="navClick('${s.id}')">
+              <div class="ico">${s.icon}</div>
+              <div style="flex:1">${s.name}</div>
+              <div class="drag-handle" title="拖动排序">⠿</div>
+            </div>`;
+          });
+        }
+      });
+    }
   });
+  html += `<div class="nav-install-btn ${pwaDeferred?'ready':''}" onclick="pwaInstallClick()">📱 安装到主屏${pwaDeferred?' ✦':''}</div>`;
   list.innerHTML = html;
   attachDrag();
+}
+function toggleNavGroup(name){
+  const wasCollapsed = navCollapsed[name] !== false;
+  navCollapsed[name] = !wasCollapsed;
+  renderNav();
+}
+function pwaInstallClick(){
+  if(dp){
+    dp.prompt();
+    dp.userChoice.then(function(c){ if(c.outcome==='accepted') dp=null; }).finally(function(){ if(pwaDeferred){ pwaDeferred=false; renderNav(); } });
+    return;
+  }
+  if(typeof reviewToast==='function'){ reviewToast('📱 iOS：Safari 底部「分享」→ 添加到主屏幕'); }
+  else { alert('iOS 用户：请点击 Safari 底部工具栏的「分享」按钮，选择「添加到主屏幕」。'); }
 }
 function navClick(id){
   currentPage = id;
@@ -2869,20 +2909,13 @@ init();
 </script>
 <script>
 (function(){
-  var dp=null,ib=null;
-  window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();dp=e;showIB();});
-  window.addEventListener("appinstalled",function(){if(ib){ib.style.display="none";ib.remove();ib=null;}dp=null;});
-  function showIB(){
-    if(document.getElementById("pwaInstallBtn"))return;
-    ib=document.createElement("button");
-    ib.id="pwaInstallBtn";
-    ib.innerHTML="📱 安装到主屏（无角标）";
-    Object.assign(ib.style,{position:"fixed",bottom:"18px",left:"50%",transform:"translateX(-50%)",zIndex:99998,padding:"10px 20px",borderRadius:"24px",background:"linear-gradient(135deg,#5ec9a8,#48b89a)",color:"#fff",border:"none",fontSize:"13px",fontWeight:700,boxShadow:"0 4px 16px rgba(80,180,140,.35)",cursor:"pointer",fontFamily:"inherit"});
-    ib.addEventListener("click",function(){if(!dp){alert("请用浏览器菜单「添加到主屏幕」");return;}dp.prompt();dp.userChoice.then(function(c){if(c.outcome==="accepted"){ib.style.display="none";ib.remove();ib=null;}dp=null;});});
-    document.body.appendChild(ib);
-  }
-  setTimeout(showIB,3000);
-  if(!document.getElementById("pwaStyle")){var s=document.createElement("style");s.id="pwaStyle";s.textContent="@keyframes pwaBounce{0%{transform:translateX(-50%) scale(.8);opacity:0}60%{transform:translateX(-50%) scale(1.05)}100%{transform:translateX(-50%) scale(1);opacity:1}}";document.head.appendChild(s);}
+  window.addEventListener("beforeinstallprompt",function(e){
+    e.preventDefault();
+    dp=e;
+    pwaDeferred=true;
+    if(typeof renderNav==='function') renderNav();
+  });
+  window.addEventListener("appinstalled",function(){ dp=null; pwaDeferred=false; if(typeof renderNav==='function') renderNav(); });
 })();
 if("serviceWorker" in navigator && location.protocol==="https:"){
   window.addEventListener("load",function(){ navigator.serviceWorker.register("sw.js").catch(function(){}); });
